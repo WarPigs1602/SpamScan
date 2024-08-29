@@ -26,6 +26,20 @@ import java.util.logging.Logger;
 public class SocketThread implements Runnable, Software {
 
     /**
+     * @return the userChannels
+     */
+    public HashMap<String, ArrayList<String>> getUserChannels() {
+        return userChannels;
+    }
+
+    /**
+     * @param userChannels the userChannels to set
+     */
+    public void setUserChannels(HashMap<String, ArrayList<String>> userChannels) {
+        this.userChannels = userChannels;
+    }
+
+    /**
      * @return the flood
      */
     public HashMap<String, Integer> getFlood() {
@@ -138,12 +152,14 @@ public class SocketThread implements Runnable, Software {
     private byte[] ip;
     private ArrayList<String> channels;
     private HashMap<String, Integer> flood;
+    private HashMap<String, ArrayList<String>> userChannels;
     private boolean reg;
 
     public SocketThread(Spamscan mi) {
         setMi(mi);
         setChannels(new ArrayList<>());
         setFlood(new HashMap<>());
+        setUserChannels(new HashMap<>());
         setReg(false);
         (thread = new Thread(this)).start();
     }
@@ -241,7 +257,7 @@ public class SocketThread implements Runnable, Software {
                 } else {
                     sendText("%sAAA O %s :Unknown command, or access denied.", getNumeric(), elem[0]);
                 }
-            } else if (elem[1].equals("P") && getChannels().contains(elem[2].toLowerCase())) {
+            } else if ((elem[1].equals("P") || elem[1].equals("O")) && getChannels().contains(elem[2].toLowerCase())) {
                 StringBuilder sb = new StringBuilder();
                 for (int i = 3; i < elem.length; i++) {
                     if (elem[3].startsWith(":")) {
@@ -252,6 +268,17 @@ public class SocketThread implements Runnable, Software {
                 }
                 var command = sb.toString().trim();
                 var nick = elem[0];
+                if (!getUserChannels().containsKey(nick)) {
+                    var list = new ArrayList<String>();
+                    list.add(elem[2].toLowerCase());
+                    getUserChannels().put(nick, list);
+                } else {
+                    var list = getUserChannels().get(nick);
+                    if(!list.contains(elem[2].toLowerCase())) {
+                        list.add(elem[2].toLowerCase());
+                        getUserChannels().replace(nick, list);
+                    }                    
+                }
                 if (!getFlood().containsKey(nick)) {
                     getFlood().put(nick, 0);
                 } else {
@@ -262,7 +289,27 @@ public class SocketThread implements Runnable, Software {
                         sendText("%sAAA D %s %d : You are violating network rules!", getNumeric(), nick, time());
                     }
                 }
-                System.out.println(" > " + command + " " + getFlood().get(nick));
+            } else if (elem[1].equals("L")) {
+                var nick = elem[0];
+                if (getUserChannels().containsKey(nick)) {
+                    var list = getUserChannels().get(nick);
+                    if(list.contains(elem[2].toLowerCase())) {
+                        list.remove(elem[2].toLowerCase());
+                        if (list.isEmpty()) {
+                            getUserChannels().remove(nick);
+                        } else {
+                            getUserChannels().replace(nick, list);
+                        }
+                    }
+                }                
+            } if (elem[1].equals("Q")) {
+                var nick = elem[0];
+                if (getFlood().containsKey(nick)) {
+                    getFlood().remove(nick);
+                }
+                if (getUserChannels().containsKey(nick)) {
+                    getUserChannels().remove(nick);
+                }                
             }
         }
         System.out.println(text);
