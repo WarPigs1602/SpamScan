@@ -1,0 +1,17 @@
+[
+{"name":"host","value":"127.0.0.1"},
+{"name":"port","value":"4400"},
+{"name":"password","value":"password"},
+{"name":"nick","value":"S"},
+{"name":"servername","value":"spamscan.midiandmore.net"},
+{"name":"description","value":"MidiAndMore Spamscan"},
+{"name":"identd","value":"spamscan"},
+{"name":"numeric","value":"AF"},
+{"name":"db","value":"newserv"},
+{"name":"dbuser","value":"newserv"},
+{"name":"dbpassword","value":"password"},
+{"name":"dbhost","value":"localhost"},
+{"name":"dbssl","value":"false"},
+{"name":"authuser","value":"R"},
+{"name":"authpassword","value":"password"}
+]
