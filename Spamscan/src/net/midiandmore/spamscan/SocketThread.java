@@ -209,9 +209,10 @@ public class SocketThread implements Runnable, Software {
 
     protected void parseLine(String text) {
         var p = getMi().getConfig().getConfigFile();
+        text = text.trim();
         if (text.startsWith("SERVER")) {
             setServerNumeric(text.split(" ")[6].substring(0, 1));
-        } else if (getServerNumeric() != null && text.startsWith(getServerNumeric())) {
+        } else if (getServerNumeric() != null) {
             var elem = text.split(" ");
             if (elem[1].equals("EB")) {
                 sendText("%s EA", getNumeric());
@@ -224,17 +225,18 @@ public class SocketThread implements Runnable, Software {
             } else if (elem[1].equals("P") && elem[2].equals(getNumeric() + "AAA")) {
                 StringBuilder sb = new StringBuilder();
                 for (int i = 3; i < elem.length; i++) {
-                    if (elem[3].startsWith(":")) {
-                        elem[3] = elem[3].substring(1);
-                    }
                     sb.append(elem[i]);
                     sb.append(" ");
                 }
                 var command = sb.toString().trim();
+                if(command.startsWith(":")) {
+                    command = command.substring(1);
+                }
                 var auth = command.split(" ");
                 if (auth[0].equalsIgnoreCase("AUTH")) {
                     if (auth[1].equals(p.getProperty("authuser")) && auth[2].equals(p.getProperty("authpassword"))) {
                         setReg(true);
+                        sendText("%sAAA O %s :Successfuly authed.", getNumeric(), elem[0]);
                     } else {
                         sendText("%sAAA O %s :Unknown command, or access denied.", getNumeric(), elem[0]);
                     }
@@ -243,6 +245,7 @@ public class SocketThread implements Runnable, Software {
                     getMi().getDb().addChan(channel);
                     joinChannel(channel);
                     setReg(false);
+                    sendText("%sAAA O %s :Added Channel %s", getNumeric(), elem[0], channel);
                 } else if (auth[0].equalsIgnoreCase("SHOWCOMMANDS")) {
                     sendText("%sAAA O %s :SpamScan Version %s", getNumeric(), elem[0], VERSION);
                     sendText("%sAAA O %s :The following commands are available to you:", getNumeric(), elem[0]);
@@ -274,10 +277,10 @@ public class SocketThread implements Runnable, Software {
                     getUserChannels().put(nick, list);
                 } else {
                     var list = getUserChannels().get(nick);
-                    if(!list.contains(elem[2].toLowerCase())) {
+                    if (!list.contains(elem[2].toLowerCase())) {
                         list.add(elem[2].toLowerCase());
                         getUserChannels().replace(nick, list);
-                    }                    
+                    }
                 }
                 if (!getFlood().containsKey(nick)) {
                     getFlood().put(nick, 0);
@@ -293,7 +296,7 @@ public class SocketThread implements Runnable, Software {
                 var nick = elem[0];
                 if (getUserChannels().containsKey(nick)) {
                     var list = getUserChannels().get(nick);
-                    if(list.contains(elem[2].toLowerCase())) {
+                    if (list.contains(elem[2].toLowerCase())) {
                         list.remove(elem[2].toLowerCase());
                         if (list.isEmpty()) {
                             getUserChannels().remove(nick);
@@ -301,15 +304,16 @@ public class SocketThread implements Runnable, Software {
                             getUserChannels().replace(nick, list);
                         }
                     }
-                }                
-            } if (elem[1].equals("Q")) {
+                }
+            }
+            if (elem[1].equals("Q")) {
                 var nick = elem[0];
                 if (getFlood().containsKey(nick)) {
                     getFlood().remove(nick);
                 }
                 if (getUserChannels().containsKey(nick)) {
                     getUserChannels().remove(nick);
-                }                
+                }
             }
         }
         System.out.println(text);
