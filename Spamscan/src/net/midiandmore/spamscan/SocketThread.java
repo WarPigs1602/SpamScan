@@ -237,7 +237,7 @@ public class SocketThread implements Runnable, Software {
                 if (auth[0].equalsIgnoreCase("AUTH")) {
                     if (auth[1].equals(p.getProperty("authuser")) && auth[2].equals(p.getProperty("authpassword"))) {
                         setReg(true);
-                        sendText("%sAAA O %s :Successfuly authed.", getNumeric(), elem[0]);
+                        sendText("%sAAA O %s :Successfully authed.", getNumeric(), elem[0]);
                     } else {
                         sendText("%sAAA O %s :Unknown command, or access denied.", getNumeric(), elem[0]);
                     }
