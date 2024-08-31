@@ -37,10 +37,10 @@ public class WaitThread implements Runnable {
 
     @Override
     public void run() {
+        getMi().getDb().createSchema();
+        getMi().getDb().createTable();
         while (true) {
             try {
-                getMi().getDb().createSchema();
-                getMi().getDb().createTable();
                 if (getMi().getSocketThread() == null) {
                     getMi().setSocketThread(new SocketThread(getMi()));
                 } else if (getMi().getSocketThread().getSocket() == null) {

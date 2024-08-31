@@ -5,6 +5,7 @@
 package net.midiandmore.spamscan;
 
 import java.io.BufferedReader;
+import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.InetAddress;
@@ -229,7 +230,7 @@ public class SocketThread implements Runnable, Software {
                     sb.append(" ");
                 }
                 var command = sb.toString().trim();
-                if(command.startsWith(":")) {
+                if (command.startsWith(":")) {
                     command = command.substring(1);
                 }
                 var auth = command.split(" ");
@@ -349,10 +350,30 @@ public class SocketThread implements Runnable, Software {
             while (!getSocket().isClosed() && (content = getBr().readLine()) != null && isRuns()) {
                 parseLine(content);
             }
-            setRuns(false);
-        } catch (Exception ex) {
-            Logger.getLogger(SocketThread.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (IOException | NumberFormatException ex) {
         }
+        if (getPw() != null) {
+            try {
+                getPw().close();
+            } catch (Exception ex) {
+            }
+        }
+        if (getBr() != null) {
+            try {
+                getBr().close();
+            } catch (IOException ex) {
+            }
+        }
+        if (getSocket() != null && !getSocket().isClosed()) {
+            try {
+                getSocket().close();
+            } catch (IOException ex) {
+            }
+        }
+        setPw(null);
+        setBr(null);
+        setSocket(null);
+        setRuns(false);
     }
 
     /**
