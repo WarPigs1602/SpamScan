@@ -301,13 +301,27 @@ public class SocketThread implements Runnable, Software {
                         list.remove(elem[2].toLowerCase());
                         if (list.isEmpty()) {
                             getUserChannels().remove(nick);
+                            getFlood().remove(nick);
                         } else {
                             getUserChannels().replace(nick, list);
                         }
                     }
                 }
-            }
-            if (elem[1].equals("Q")) {
+            } else if (elem[1].equals("K")) {
+                var nick = elem[3];
+                if (getUserChannels().containsKey(nick)) {
+                    var list = getUserChannels().get(nick);
+                    if (list.contains(elem[2].toLowerCase())) {
+                        list.remove(elem[2].toLowerCase());
+                        if (list.isEmpty()) {
+                            getUserChannels().remove(nick);
+                            getFlood().remove(nick);
+                        } else {
+                            getUserChannels().replace(nick, list);
+                        }
+                    }
+                }
+            } else if (elem[1].equals("Q")) {
                 var nick = elem[0];
                 if (getFlood().containsKey(nick)) {
                     getFlood().remove(nick);
