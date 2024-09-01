@@ -43,7 +43,27 @@ public class Database {
     }
 
     /**
-     * Fetching emails
+     * Fetching flags
+     *
+     * @return The data
+     */
+    protected int getFlags(String nick) {
+        var dat = 0;
+        try (var statement = getConn().prepareStatement("SELECT flags FROM chanserv.users WHERE username = ?;")) {
+            statement.setString(1, nick);
+            try (var resultset = statement.executeQuery()) {
+                while (resultset.next()) {
+                    dat = resultset.getInt("flags");
+                }
+            }
+        } catch (SQLException ex) {
+            Logger.getLogger(Database.class.getName()).log(Level.SEVERE, null, ex);
+        }
+        return dat;
+    }
+    
+    /**
+     * Fetching channels
      *
      * @return The data
      */

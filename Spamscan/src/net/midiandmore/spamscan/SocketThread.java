@@ -154,6 +154,7 @@ public class SocketThread implements Runnable, Software {
     private ArrayList<String> channels;
     private HashMap<String, Integer> flood;
     private HashMap<String, ArrayList<String>> userChannels;
+    private HashMap<String, String> userAccount;
     private boolean reg;
 
     public SocketThread(Spamscan mi) {
@@ -161,6 +162,7 @@ public class SocketThread implements Runnable, Software {
         setChannels(new ArrayList<>());
         setFlood(new HashMap<>());
         setUserChannels(new HashMap<>());
+        setUserAccount(new HashMap<>());
         setReg(false);
         (thread = new Thread(this)).start();
     }
@@ -215,7 +217,38 @@ public class SocketThread implements Runnable, Software {
             setServerNumeric(text.split(" ")[6].substring(0, 1));
         } else if (getServerNumeric() != null) {
             var elem = text.split(" ");
-            if (elem[1].equals("EB")) {
+            if (elem[1].equals("N")) {
+                var priv = elem[7].contains("r");
+                var hidden = elem[7].contains("h");
+                String acc = null;
+                String nick = null;
+                if (elem[8].contains(":")) {
+                    acc = elem[8].split(":", 2)[0];
+                    if (hidden) {
+                        nick = elem[11];
+                    } else {
+                        nick = elem[10];
+                    }
+                } else {
+                    acc = "";
+                    if (hidden) {
+                        nick = elem[10];
+                    } else {
+                        nick = elem[9];
+                    }
+                }
+                getUserAccount().put(nick, acc);
+                sendText("Added account %s for %s", acc, nick);
+            } else if (elem[1].equals("AC")) {
+                var acc = elem[3];
+                var nick = elem[2];
+                if (getUserAccount().containsKey(nick)) {
+                    getUserAccount().replace(nick, acc);
+                } else {
+                    getUserAccount().put(nick, acc);
+                }
+                sendText("Added account %s for %s", acc, nick);
+            } else if (elem[1].equals("EB")) {
                 sendText("%s EA", getNumeric());
                 var list = getMi().getDb().getChannel();
                 for (var channel : list) {
@@ -233,15 +266,16 @@ public class SocketThread implements Runnable, Software {
                 if (command.startsWith(":")) {
                     command = command.substring(1);
                 }
+                var nick = getUserAccount().get(elem[0]);
                 var auth = command.split(" ");
-                if (auth[0].equalsIgnoreCase("AUTH")) {
-                    if (auth[1].equals(p.getProperty("authuser")) && auth[2].equals(p.getProperty("authpassword"))) {
+                if (isPrivileged(nick) && auth[0].equalsIgnoreCase("AUTH")) {
+                    if (auth.length >= 3 && auth[1].equals(p.getProperty("authuser")) && auth[2].equals(p.getProperty("authpassword"))) {
                         setReg(true);
                         sendText("%sAAA O %s :Successfully authed.", getNumeric(), elem[0]);
                     } else {
                         sendText("%sAAA O %s :Unknown command, or access denied.", getNumeric(), elem[0]);
                     }
-                } else if (isReg() && auth[0].equalsIgnoreCase("ADDCHAN")) {
+                } else if (isPrivileged(nick) && isReg() && auth.length >= 2 && auth[0].equalsIgnoreCase("ADDCHAN")) {
                     var channel = auth[1];
                     getMi().getDb().addChan(channel);
                     joinChannel(channel);
@@ -251,6 +285,10 @@ public class SocketThread implements Runnable, Software {
                     sendText("%sAAA O %s :SpamScan Version %s", getNumeric(), elem[0], VERSION);
                     sendText("%sAAA O %s :The following commands are available to you:", getNumeric(), elem[0]);
                     sendText("%sAAA O %s :--- Commands available for users ---", getNumeric(), elem[0]);
+                    if (isPrivileged(nick)) {
+                        sendText("%sAAA O %s :ADDCHAN", getNumeric(), elem[0]);
+                        sendText("%sAAA O %s :AUTH", getNumeric(), elem[0]);
+                    }
                     sendText("%sAAA O %s :HELP", getNumeric(), elem[0]);
                     sendText("%sAAA O %s :SHOWCOMMANDS", getNumeric(), elem[0]);
                     sendText("%sAAA O %s :VERSION", getNumeric(), elem[0]);
@@ -258,6 +296,10 @@ public class SocketThread implements Runnable, Software {
                 } else if (auth[0].equalsIgnoreCase("VERSION")) {
                     sendText("%sAAA O %s :SpamScan v%s by %s", getNumeric(), elem[0], VERSION, VENDOR);
                     sendText("%sAAA O %s :By %s", getNumeric(), elem[0], AUTHOR);
+                } else if (auth.length == 2 && auth[0].equalsIgnoreCase("HELP") && auth[1].equalsIgnoreCase("ADDCHAN")) {
+                    sendText("%sAAA O %s :ADDCHAN channel (Must authed before)", getNumeric(), elem[0]);
+                } else if (auth.length == 2 && auth[0].equalsIgnoreCase("HELP") && auth[1].equalsIgnoreCase("AUTH")) {
+                    sendText("%sAAA O %s :AUTH requestname requestpassword", getNumeric(), elem[0]);
                 } else {
                     sendText("%sAAA O %s :Unknown command, or access denied.", getNumeric(), elem[0]);
                 }
@@ -323,6 +365,7 @@ public class SocketThread implements Runnable, Software {
                 }
             } else if (elem[1].equals("Q")) {
                 var nick = elem[0];
+                getUserAccount().remove(nick);
                 if (getFlood().containsKey(nick)) {
                     getFlood().remove(nick);
                 }
@@ -332,6 +375,81 @@ public class SocketThread implements Runnable, Software {
             }
         }
         System.out.println(text);
+    }
+
+    private boolean isPrivileged(String nick) {
+        if (!nick.isBlank()) {
+            var flags = getMi().getDb().getFlags(nick);
+            var oper = isOper(flags);
+            if (oper == 0) {
+                oper = isAdmin(flags);
+            }
+            if (oper == 0) {
+                oper = isDev(flags);
+            }
+            return oper != 0;
+        }
+        return false;
+    }
+
+    private int isNoInfo(int flags) {
+        return 0;
+    }
+
+    private int isInactive(int flags) {
+        return (flags & QUFLAG_INACTIVE);
+    }
+
+    private int isGline(int flags) {
+        return (flags & QUFLAG_GLINE);
+    }
+
+    private int isNotice(int flags) {
+        return (flags & QUFLAG_NOTICE);
+    }
+
+    private int isSuspended(int flags) {
+        return (flags & QUFLAG_SUSPENDED);
+    }
+
+    private int isOper(int flags) {
+        return (flags & QUFLAG_OPER);
+    }
+
+    private int isDev(int flags) {
+        return (flags & QUFLAG_DEV);
+    }
+
+    private int isProtect(int flags) {
+        return (flags & QUFLAG_PROTECT);
+    }
+
+    private int isHelper(int flags) {
+        return (flags & QUFLAG_HELPER);
+    }
+
+    private int isAdmin(int flags) {
+        return (flags & QUFLAG_ADMIN);
+    }
+
+    private int isInfo(int flags) {
+        return (flags & QUFLAG_INFO);
+    }
+
+    private int isDelayedGline(int flags) {
+        return (flags & QUFLAG_DELAYEDGLINE);
+    }
+
+    private int isNoAuthLimit(int flags) {
+        return (flags & QUFLAG_NOAUTHLIMIT);
+    }
+
+    private int isCleanupExempt(int flags) {
+        return (flags & QUFLAG_CLEANUPEXEMPT);
+    }
+
+    private int isStaff(int flags) {
+        return (flags & QUFLAG_STAFF);
     }
 
     private void joinChannel(String channel) {
@@ -500,5 +618,19 @@ public class SocketThread implements Runnable, Software {
      */
     public void setReg(boolean reg) {
         this.reg = reg;
+    }
+
+    /**
+     * @return the userAccount
+     */
+    public HashMap<String, String> getUserAccount() {
+        return userAccount;
+    }
+
+    /**
+     * @param userAccount the userAccount to set
+     */
+    public void setUserAccount(HashMap<String, String> userAccount) {
+        this.userAccount = userAccount;
     }
 }
