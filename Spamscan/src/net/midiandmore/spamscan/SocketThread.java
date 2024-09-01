@@ -281,6 +281,42 @@ public class SocketThread implements Runnable, Software {
                     joinChannel(channel);
                     setReg(false);
                     sendText("%sAAA O %s :Added Channel %s", getNumeric(), elem[0], channel);
+                } else if (isPrivileged(nick) && auth.length >= 2 && auth[0].equalsIgnoreCase("BADWORD")) {
+                    var flag = auth[1];
+                    var b = getMi().getConfig().getBadwordFile();
+                    if (flag.equalsIgnoreCase("ADD") || flag.equalsIgnoreCase("DELETE")) {
+                        StringBuilder sb1 = new StringBuilder();
+                        for (int i = 2; i < auth.length; i++) {
+                            sb1.append(auth[i]);
+                            sb1.append(" ");
+                        }
+                        var parsed = sb1.toString().trim();
+                        if (b.containsKey(parsed.toLowerCase())) {
+                            if (flag.equalsIgnoreCase("ADD")) {
+                                sendText("%sAAA O %s :Badword (%s) allready exists.", getNumeric(), elem[0], parsed);
+                            } else if (flag.equalsIgnoreCase("DELETE")) {
+                                b.remove(parsed.toLowerCase());
+                                getMi().getConfig().saveDataToJSON("badwords-spamscan.json", b, "name", "value");
+                                sendText("%sAAA O %s :Badword (%s) successfully removed.", getNumeric(), elem[0], parsed);
+                            }
+                        } else {
+                            if (flag.equalsIgnoreCase("ADD")) {
+                                b.put(parsed.toLowerCase(), "");
+                                getMi().getConfig().saveDataToJSON("badwords-spamscan.json", b, "name", "value");
+                                sendText("%sAAA O %s :Badword (%s) successfully added.", getNumeric(), elem[0], parsed);
+                            } else if (flag.equalsIgnoreCase("DELETE")) {
+                                sendText("%sAAA O %s :Badword (%s) doesn't exists.", getNumeric(), elem[0], parsed);
+                            }
+                        }
+                    } else if (flag.equalsIgnoreCase("LIST")) {
+                        sendText("%sAAA O %s :--- Badwords ---", getNumeric(), elem[0]);
+                        for (var key : b.keySet()) {
+                            sendText("%sAAA O %s :%s", getNumeric(), elem[0], key);
+                        }
+                        sendText("%sAAA O %s :--- End of list ---", getNumeric(), elem[0]);
+                    } else {
+                        sendText("%sAAA O %s :Unknown flag.", getNumeric(), elem[0]);
+                    }
                 } else if (auth[0].equalsIgnoreCase("SHOWCOMMANDS")) {
                     sendText("%sAAA O %s :SpamScan Version %s", getNumeric(), elem[0], VERSION);
                     sendText("%sAAA O %s :The following commands are available to you:", getNumeric(), elem[0]);
@@ -288,6 +324,7 @@ public class SocketThread implements Runnable, Software {
                     if (isPrivileged(nick)) {
                         sendText("%sAAA O %s :ADDCHAN", getNumeric(), elem[0]);
                         sendText("%sAAA O %s :AUTH", getNumeric(), elem[0]);
+                        sendText("%sAAA O %s :BADWORD", getNumeric(), elem[0]);
                     }
                     sendText("%sAAA O %s :HELP", getNumeric(), elem[0]);
                     sendText("%sAAA O %s :SHOWCOMMANDS", getNumeric(), elem[0]);
@@ -297,9 +334,11 @@ public class SocketThread implements Runnable, Software {
                     sendText("%sAAA O %s :SpamScan v%s by %s", getNumeric(), elem[0], VERSION, VENDOR);
                     sendText("%sAAA O %s :By %s", getNumeric(), elem[0], AUTHOR);
                 } else if (isPrivileged(nick) && auth.length == 2 && auth[0].equalsIgnoreCase("HELP") && auth[1].equalsIgnoreCase("ADDCHAN")) {
-                    sendText("%sAAA O %s :ADDCHAN channel (Must authed before)", getNumeric(), elem[0]);
+                    sendText("%sAAA O %s :ADDCHAN <#channel> (You must authed with AUTH before.)", getNumeric(), elem[0]);
                 } else if (isPrivileged(nick) && auth.length == 2 && auth[0].equalsIgnoreCase("HELP") && auth[1].equalsIgnoreCase("AUTH")) {
-                    sendText("%sAAA O %s :AUTH requestname requestpassword", getNumeric(), elem[0]);
+                    sendText("%sAAA O %s :AUTH <requestname> <requestpassword>", getNumeric(), elem[0]);
+                } else if (isPrivileged(nick) && auth.length == 2 && auth[0].equalsIgnoreCase("HELP") && auth[1].equalsIgnoreCase("BADWORD")) {
+                    sendText("%sAAA O %s :BADWORD <ADD|LIST|DELETE> [badword]", getNumeric(), elem[0]);
                 } else {
                     sendText("%sAAA O %s :Unknown command, or access denied.", getNumeric(), elem[0]);
                 }
@@ -333,6 +372,14 @@ public class SocketThread implements Runnable, Software {
                     getFlood().replace(nick, info);
                     if (info > 5) {
                         sendText("%sAAA D %s %d : You are violating network rules!", getNumeric(), nick, time());
+                    }
+                }
+                var b = getMi().getConfig().getBadwordFile();
+                for (var key : b.keySet()) {
+                    var key1 = (String) key;
+                    if(command.toLowerCase().contains(key1.toLowerCase())) {
+                        sendText("%sAAA D %s %d : You are violating network rules!", getNumeric(), nick, time());
+                        break;                        
                     }
                 }
             } else if (elem[1].equals("L")) {
