@@ -296,9 +296,9 @@ public class SocketThread implements Runnable, Software {
                 } else if (auth[0].equalsIgnoreCase("VERSION")) {
                     sendText("%sAAA O %s :SpamScan v%s by %s", getNumeric(), elem[0], VERSION, VENDOR);
                     sendText("%sAAA O %s :By %s", getNumeric(), elem[0], AUTHOR);
-                } else if (auth.length == 2 && auth[0].equalsIgnoreCase("HELP") && auth[1].equalsIgnoreCase("ADDCHAN")) {
+                } else if (isPrivileged(nick) && auth.length == 2 && auth[0].equalsIgnoreCase("HELP") && auth[1].equalsIgnoreCase("ADDCHAN")) {
                     sendText("%sAAA O %s :ADDCHAN channel (Must authed before)", getNumeric(), elem[0]);
-                } else if (auth.length == 2 && auth[0].equalsIgnoreCase("HELP") && auth[1].equalsIgnoreCase("AUTH")) {
+                } else if (isPrivileged(nick) && auth.length == 2 && auth[0].equalsIgnoreCase("HELP") && auth[1].equalsIgnoreCase("AUTH")) {
                     sendText("%sAAA O %s :AUTH requestname requestpassword", getNumeric(), elem[0]);
                 } else {
                     sendText("%sAAA O %s :Unknown command, or access denied.", getNumeric(), elem[0]);
