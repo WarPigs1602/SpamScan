@@ -275,12 +275,18 @@ public class SocketThread implements Runnable, Software {
                     } else {
                         sendText("%sAAA O %s :Unknown command, or access denied.", getNumeric(), elem[0]);
                     }
-                } else if (isPrivileged(nick) && isReg() && auth.length >= 2 && auth[0].equalsIgnoreCase("ADDCHAN")) {
+                } else if ((isPrivileged(nick) || isReg()) && auth.length >= 2 && auth[0].equalsIgnoreCase("ADDCHAN")) {
                     var channel = auth[1];
                     getMi().getDb().addChan(channel);
                     joinChannel(channel);
                     setReg(false);
-                    sendText("%sAAA O %s :Added Channel %s", getNumeric(), elem[0], channel);
+                    sendText("%sAAA O %s :Added channel %s", getNumeric(), elem[0], channel);
+                } else if ((isPrivileged(nick) || isReg()) && auth.length >= 2 && auth[0].equalsIgnoreCase("DELCHAN")) {
+                    var channel = auth[1];
+                    getMi().getDb().removeChan(channel);
+                    partChannel(channel);
+                    setReg(false);
+                    sendText("%sAAA O %s :Removed channel %s", getNumeric(), elem[0], channel);
                 } else if (isPrivileged(nick) && auth.length >= 2 && auth[0].equalsIgnoreCase("BADWORD")) {
                     var flag = auth[1];
                     var b = getMi().getConfig().getBadwordFile();
@@ -325,6 +331,7 @@ public class SocketThread implements Runnable, Software {
                         sendText("%sAAA O %s :ADDCHAN", getNumeric(), elem[0]);
                         sendText("%sAAA O %s :AUTH", getNumeric(), elem[0]);
                         sendText("%sAAA O %s :BADWORD", getNumeric(), elem[0]);
+                        sendText("%sAAA O %s :DELCHAN", getNumeric(), elem[0]);
                     }
                     sendText("%sAAA O %s :HELP", getNumeric(), elem[0]);
                     sendText("%sAAA O %s :SHOWCOMMANDS", getNumeric(), elem[0]);
@@ -334,11 +341,13 @@ public class SocketThread implements Runnable, Software {
                     sendText("%sAAA O %s :SpamScan v%s by %s", getNumeric(), elem[0], VERSION, VENDOR);
                     sendText("%sAAA O %s :By %s", getNumeric(), elem[0], AUTHOR);
                 } else if (isPrivileged(nick) && auth.length == 2 && auth[0].equalsIgnoreCase("HELP") && auth[1].equalsIgnoreCase("ADDCHAN")) {
-                    sendText("%sAAA O %s :ADDCHAN <#channel> (You must authed with AUTH before.)", getNumeric(), elem[0]);
+                    sendText("%sAAA O %s :ADDCHAN <#channel>", getNumeric(), elem[0]);
                 } else if (isPrivileged(nick) && auth.length == 2 && auth[0].equalsIgnoreCase("HELP") && auth[1].equalsIgnoreCase("AUTH")) {
                     sendText("%sAAA O %s :AUTH <requestname> <requestpassword>", getNumeric(), elem[0]);
                 } else if (isPrivileged(nick) && auth.length == 2 && auth[0].equalsIgnoreCase("HELP") && auth[1].equalsIgnoreCase("BADWORD")) {
                     sendText("%sAAA O %s :BADWORD <ADD|LIST|DELETE> [badword]", getNumeric(), elem[0]);
+                } else if (isPrivileged(nick) && auth.length == 2 && auth[0].equalsIgnoreCase("HELP") && auth[1].equalsIgnoreCase("DELCHAN")) {
+                    sendText("%sAAA O %s :DELCHAN <#channel>", getNumeric(), elem[0]);
                 } else {
                     sendText("%sAAA O %s :Unknown command, or access denied.", getNumeric(), elem[0]);
                 }
@@ -504,6 +513,11 @@ public class SocketThread implements Runnable, Software {
         sendText("%s M %s +o %sAAA", getNumeric(), channel, getNumeric());
         getChannels().add(channel.toLowerCase());
     }
+    
+    private void partChannel(String channel) {
+        sendText("%sAAA L %s", getNumeric(), channel);
+        getChannels().remove(channel.toLowerCase());
+    }    
 
     private long time() {
         return System.currentTimeMillis() / 1000;

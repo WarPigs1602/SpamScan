@@ -105,6 +105,18 @@ public class Database {
             Logger.getLogger(Database.class.getName()).log(Level.SEVERE, null, ex);
         }
     }
+    
+    protected void removeChan(String channel) {
+        try {
+            try (var statement = getConn().prepareStatement("DELETE FROM spamscan.channels WHERE channel = ?;")) {
+                statement.setString(1, channel);
+                statement.executeUpdate();
+            }
+        } catch (SQLException ex) {
+            Logger.getLogger(Database.class.getName()).log(Level.SEVERE, null, ex);
+        }
+    }
+    
     /**
      * Create table
      */
