@@ -34,10 +34,12 @@ public class Database {
         props.setProperty("password", (String) config.get("dbpassword"));
         props.setProperty("ssl", (String) config.get("dbssl"));
         try {
+            System.out.println("Connecting to database...");
             setConn(DriverManager.getConnection(url, props));
             setConnected(true);
+            System.out.println("Successfully connected to databse...");
         } catch (SQLException ex) {
-            Logger.getLogger(Database.class.getName()).log(Level.SEVERE, null, ex);
+            System.out.println("Connection to database failed: " +ex.getMessage());
             setConnected(false);
         }
     }
@@ -57,7 +59,7 @@ public class Database {
                 }
             }
         } catch (SQLException ex) {
-            Logger.getLogger(Database.class.getName()).log(Level.SEVERE, null, ex);
+            System.out.println("Access to database failed: " + ex.getMessage());
         }
         return dat;
     }
@@ -77,7 +79,7 @@ public class Database {
                 }
             }
         } catch (SQLException ex) {
-            Logger.getLogger(Database.class.getName()).log(Level.SEVERE, null, ex);
+            System.out.println("Access to database failed: " + ex.getMessage());
         }
         return dat;
     }
@@ -91,7 +93,7 @@ public class Database {
                 statement.executeUpdate();
             }
         } catch (SQLException ex) {
-            Logger.getLogger(Database.class.getName()).log(Level.SEVERE, null, ex);
+            System.out.println("Access to database failed: " + ex.getMessage());
         }
     }
 
@@ -102,7 +104,7 @@ public class Database {
                 statement.executeUpdate();
             }
         } catch (SQLException ex) {
-            Logger.getLogger(Database.class.getName()).log(Level.SEVERE, null, ex);
+            System.out.println("Access to database failed: " + ex.getMessage());
         }
     }
     
@@ -113,7 +115,7 @@ public class Database {
                 statement.executeUpdate();
             }
         } catch (SQLException ex) {
-            Logger.getLogger(Database.class.getName()).log(Level.SEVERE, null, ex);
+            System.out.println("Access to database failed: " + ex.getMessage());
         }
     }
     
@@ -126,7 +128,7 @@ public class Database {
                 statement.executeUpdate();
             }
         } catch (SQLException ex) {
-            Logger.getLogger(Database.class.getName()).log(Level.SEVERE, null, ex);
+            System.out.println("Access to database failed: " + ex.getMessage());
         }
     }
     
@@ -139,7 +141,7 @@ public class Database {
                 statement.executeUpdate();
             }
         } catch (SQLException ex) {
-            Logger.getLogger(Database.class.getName()).log(Level.SEVERE, null, ex);
+            System.out.println("Access to database failed: " + ex.getMessage());
         }
     }
     
@@ -152,7 +154,7 @@ public class Database {
                 statement.executeUpdate();
             }
         } catch (SQLException ex) {
-            Logger.getLogger(Database.class.getName()).log(Level.SEVERE, null, ex);
+            System.out.println("Access to database failed: " + ex.getMessage());
         }
     }
 

@@ -48,8 +48,10 @@ public class Config {
      * @param configFile
      */
     protected Config(Spamscan mi, String configFile) {
+        System.out.println("Loading config...");                
         setMi(mi);
         loadConfig(configFile);
+        System.out.println("Config loaded...");       
     }
 
     /**

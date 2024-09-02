@@ -27,6 +27,20 @@ import java.util.logging.Logger;
 public class SocketThread implements Runnable, Software {
 
     /**
+     * @return the hosts
+     */
+    public HashMap<String, String> getHosts() {
+        return hosts;
+    }
+
+    /**
+     * @param hosts the hosts to set
+     */
+    public void setHosts(HashMap<String, String> hosts) {
+        this.hosts = hosts;
+    }
+
+    /**
      * @return the userChannels
      */
     public HashMap<String, ArrayList<String>> getUserChannels() {
@@ -155,6 +169,8 @@ public class SocketThread implements Runnable, Software {
     private HashMap<String, Integer> flood;
     private HashMap<String, ArrayList<String>> userChannels;
     private HashMap<String, String> userAccount;
+    private HashMap<String, String> nicks;
+    private HashMap<String, String> hosts;
     private boolean reg;
 
     public SocketThread(Spamscan mi) {
@@ -162,12 +178,15 @@ public class SocketThread implements Runnable, Software {
         setChannels(new ArrayList<>());
         setFlood(new HashMap<>());
         setUserChannels(new HashMap<>());
+        setNicks(new HashMap<>());
         setUserAccount(new HashMap<>());
+        setHosts(new HashMap<>());
         setReg(false);
         (thread = new Thread(this)).start();
     }
 
     protected void handshake(String nick, String password, String servername, String description, String numeric, String identd) {
+        System.out.println("Starting handshake...");
         sendText("PASS :%s", password);
         sendText("SERVER %s %d %d %d J10 %s]]] :%s", servername, 1, time(), time(), numeric, description);
         var ia = getSocket().getInetAddress().getHostAddress();
@@ -178,6 +197,7 @@ public class SocketThread implements Runnable, Software {
         setDescription(description);
         setIp(li);
         setNumeric(numeric);
+        System.out.println("Registering nick: " + getNick());
         sendText("%s N %s 1 %d %s %s +oikr %s %sAAA :%s", getNumeric(), getNick(), time(), getIdentd(), getServername(), getNick(), getNumeric(), getDescription());
         sendText("%s EB", numeric);
     }
@@ -207,7 +227,6 @@ public class SocketThread implements Runnable, Software {
     protected void sendText(String text, Object... args) {
         getPw().println(text.formatted(args));
         getPw().flush();
-        System.out.println(text.formatted(args));
     }
 
     protected void parseLine(String text) {
@@ -215,9 +234,10 @@ public class SocketThread implements Runnable, Software {
         text = text.trim();
         if (text.startsWith("SERVER")) {
             setServerNumeric(text.split(" ")[6].substring(0, 1));
+            System.out.println("Getting SERVER response...");
         } else if (getServerNumeric() != null) {
             var elem = text.split(" ");
-            if (elem[1].equals("N")) {
+            if (elem[1].equals("N") && elem.length > 4) {
                 var priv = elem[7].contains("r");
                 var hidden = elem[7].contains("h");
                 String acc = null;
@@ -237,8 +257,11 @@ public class SocketThread implements Runnable, Software {
                         nick = elem[9];
                     }
                 }
+                getNicks().put(nick, elem[2]);
+                getHosts().put(nick, elem[5] + "@" + elem[6]);
                 getUserAccount().put(nick, acc);
-                sendText("Added account %s for %s", acc, nick);
+            } else if (elem[1].equals("N") && elem.length == 4) {
+                getNicks().replace(elem[0], elem[2]);
             } else if (elem[1].equals("AC")) {
                 var acc = elem[3];
                 var nick = elem[2];
@@ -247,13 +270,16 @@ public class SocketThread implements Runnable, Software {
                 } else {
                     getUserAccount().put(nick, acc);
                 }
-                sendText("Added account %s for %s", acc, nick);
             } else if (elem[1].equals("EB")) {
                 sendText("%s EA", getNumeric());
+                System.out.println("Handshake complete...");
                 var list = getMi().getDb().getChannel();
+                System.out.println("Joining " + list.size() + " channels...");
                 for (var channel : list) {
                     joinChannel(channel);
                 }
+                System.out.println("Channels joined...");
+                System.out.println("Successfully connected...");
             } else if (elem[1].equals("G")) {
                 sendText("%s Z %s", getNumeric(), text.substring(5));
             } else if (elem[1].equals("P") && elem[2].equals(getNumeric() + "AAA")) {
@@ -267,26 +293,30 @@ public class SocketThread implements Runnable, Software {
                     command = command.substring(1);
                 }
                 var nick = getUserAccount().get(elem[0]);
+                var notice = "O";
+                if (!isNotice(nick)) {
+                    notice = "P";
+                }
                 var auth = command.split(" ");
                 if (isPrivileged(nick) && auth[0].equalsIgnoreCase("AUTH")) {
                     if (auth.length >= 3 && auth[1].equals(p.getProperty("authuser")) && auth[2].equals(p.getProperty("authpassword"))) {
                         setReg(true);
-                        sendText("%sAAA O %s :Successfully authed.", getNumeric(), elem[0]);
+                        sendText("%sAAA %s %s :Successfully authed.", getNumeric(), notice, elem[0]);
                     } else {
-                        sendText("%sAAA O %s :Unknown command, or access denied.", getNumeric(), elem[0]);
+                        sendText("%sAAA %s %s :Unknown command, or access denied.", getNumeric(), notice, elem[0]);
                     }
                 } else if ((isPrivileged(nick) || isReg()) && auth.length >= 2 && auth[0].equalsIgnoreCase("ADDCHAN")) {
                     var channel = auth[1];
                     getMi().getDb().addChan(channel);
                     joinChannel(channel);
                     setReg(false);
-                    sendText("%sAAA O %s :Added channel %s", getNumeric(), elem[0], channel);
+                    sendText("%sAAA %s %s :Added channel %s", getNumeric(), notice, elem[0], channel);
                 } else if ((isPrivileged(nick) || isReg()) && auth.length >= 2 && auth[0].equalsIgnoreCase("DELCHAN")) {
                     var channel = auth[1];
                     getMi().getDb().removeChan(channel);
                     partChannel(channel);
                     setReg(false);
-                    sendText("%sAAA O %s :Removed channel %s", getNumeric(), elem[0], channel);
+                    sendText("%sAAA %s %s :Removed channel %s", getNumeric(), notice, elem[0], channel);
                 } else if (isPrivileged(nick) && auth.length >= 2 && auth[0].equalsIgnoreCase("BADWORD")) {
                     var flag = auth[1];
                     var b = getMi().getConfig().getBadwordFile();
@@ -299,96 +329,127 @@ public class SocketThread implements Runnable, Software {
                         var parsed = sb1.toString().trim();
                         if (b.containsKey(parsed.toLowerCase())) {
                             if (flag.equalsIgnoreCase("ADD")) {
-                                sendText("%sAAA O %s :Badword (%s) allready exists.", getNumeric(), elem[0], parsed);
+                                sendText("%sAAA %s %s :Badword (%s) allready exists.", getNumeric(), notice, elem[0], parsed);
                             } else if (flag.equalsIgnoreCase("DELETE")) {
                                 b.remove(parsed.toLowerCase());
                                 getMi().getConfig().saveDataToJSON("badwords-spamscan.json", b, "name", "value");
-                                sendText("%sAAA O %s :Badword (%s) successfully removed.", getNumeric(), elem[0], parsed);
+                                sendText("%sAAA %s %s :Badword (%s) successfully removed.", getNumeric(), notice, elem[0], parsed);
                             }
                         } else {
                             if (flag.equalsIgnoreCase("ADD")) {
                                 b.put(parsed.toLowerCase(), "");
                                 getMi().getConfig().saveDataToJSON("badwords-spamscan.json", b, "name", "value");
-                                sendText("%sAAA O %s :Badword (%s) successfully added.", getNumeric(), elem[0], parsed);
+                                sendText("%sAAA %s %s :Badword (%s) successfully added.", getNumeric(), notice, elem[0], parsed);
                             } else if (flag.equalsIgnoreCase("DELETE")) {
-                                sendText("%sAAA O %s :Badword (%s) doesn't exists.", getNumeric(), elem[0], parsed);
+                                sendText("%sAAA %s %s :Badword (%s) doesn't exists.", getNumeric(), notice, elem[0], parsed);
                             }
                         }
                     } else if (flag.equalsIgnoreCase("LIST")) {
-                        sendText("%sAAA O %s :--- Badwords ---", getNumeric(), elem[0]);
+                        sendText("%sAAA %s %s :--- Badwords ---", getNumeric(), notice, elem[0]);
                         for (var key : b.keySet()) {
-                            sendText("%sAAA O %s :%s", getNumeric(), elem[0], key);
+                            sendText("%sAAA %s %s :%s", getNumeric(), notice, elem[0], key);
                         }
-                        sendText("%sAAA O %s :--- End of list ---", getNumeric(), elem[0]);
+                        sendText("%sAAA %s %s :--- End of list ---", getNumeric(), notice, elem[0]);
                     } else {
-                        sendText("%sAAA O %s :Unknown flag.", getNumeric(), elem[0]);
+                        sendText("%sAAA %s %s :Unknown flag.", getNumeric(), notice, elem[0]);
                     }
                 } else if (auth[0].equalsIgnoreCase("SHOWCOMMANDS")) {
-                    sendText("%sAAA O %s :SpamScan Version %s", getNumeric(), elem[0], VERSION);
-                    sendText("%sAAA O %s :The following commands are available to you:", getNumeric(), elem[0]);
-                    sendText("%sAAA O %s :--- Commands available for users ---", getNumeric(), elem[0]);
+                    sendText("%sAAA %s %s :SpamScan Version %s", getNumeric(), notice, elem[0], VERSION);
+                    sendText("%sAAA %s %s :The following commands are available to you:", getNumeric(), notice, elem[0]);
+                    sendText("%sAAA %s %s :--- Commands available for users ---", getNumeric(), notice, elem[0]);
                     if (isPrivileged(nick)) {
-                        sendText("%sAAA O %s :ADDCHAN", getNumeric(), elem[0]);
-                        sendText("%sAAA O %s :AUTH", getNumeric(), elem[0]);
-                        sendText("%sAAA O %s :BADWORD", getNumeric(), elem[0]);
-                        sendText("%sAAA O %s :DELCHAN", getNumeric(), elem[0]);
+                        sendText("%sAAA %s %s :ADDCHAN", getNumeric(), notice, elem[0]);
+                        sendText("%sAAA %s %s :AUTH", getNumeric(), notice, elem[0]);
+                        sendText("%sAAA %s %s :BADWORD", getNumeric(), notice, elem[0]);
+                        sendText("%sAAA %s %s :DELCHAN", getNumeric(), notice, elem[0]);
                     }
-                    sendText("%sAAA O %s :HELP", getNumeric(), elem[0]);
-                    sendText("%sAAA O %s :SHOWCOMMANDS", getNumeric(), elem[0]);
-                    sendText("%sAAA O %s :VERSION", getNumeric(), elem[0]);
-                    sendText("%sAAA O %s :End of list.", getNumeric(), elem[0]);
+                    sendText("%sAAA %s %s :HELP", getNumeric(), notice, elem[0]);
+                    sendText("%sAAA %s %s :SHOWCOMMANDS", getNumeric(), notice, elem[0]);
+                    sendText("%sAAA %s %s :VERSION", getNumeric(), notice, elem[0]);
+                    sendText("%sAAA %s %s :End of list.", getNumeric(), notice, elem[0]);
                 } else if (auth[0].equalsIgnoreCase("VERSION")) {
-                    sendText("%sAAA O %s :SpamScan v%s by %s", getNumeric(), elem[0], VERSION, VENDOR);
-                    sendText("%sAAA O %s :By %s", getNumeric(), elem[0], AUTHOR);
+                    sendText("%sAAA %s %s :SpamScan v%s by %s", getNumeric(), notice, elem[0], VERSION, VENDOR);
+                    sendText("%sAAA %s %s :By %s", getNumeric(), notice, elem[0], AUTHOR);
                 } else if (isPrivileged(nick) && auth.length == 2 && auth[0].equalsIgnoreCase("HELP") && auth[1].equalsIgnoreCase("ADDCHAN")) {
-                    sendText("%sAAA O %s :ADDCHAN <#channel>", getNumeric(), elem[0]);
+                    sendText("%sAAA %s %s :ADDCHAN <#channel>", getNumeric(), notice, elem[0]);
                 } else if (isPrivileged(nick) && auth.length == 2 && auth[0].equalsIgnoreCase("HELP") && auth[1].equalsIgnoreCase("AUTH")) {
-                    sendText("%sAAA O %s :AUTH <requestname> <requestpassword>", getNumeric(), elem[0]);
+                    sendText("%sAAA %s %s :AUTH <requestname> <requestpassword>", getNumeric(), notice, elem[0]);
                 } else if (isPrivileged(nick) && auth.length == 2 && auth[0].equalsIgnoreCase("HELP") && auth[1].equalsIgnoreCase("BADWORD")) {
-                    sendText("%sAAA O %s :BADWORD <ADD|LIST|DELETE> [badword]", getNumeric(), elem[0]);
+                    sendText("%sAAA %s %s :BADWORD <ADD|LIST|DELETE> [badword]", getNumeric(), notice, elem[0]);
                 } else if (isPrivileged(nick) && auth.length == 2 && auth[0].equalsIgnoreCase("HELP") && auth[1].equalsIgnoreCase("DELCHAN")) {
-                    sendText("%sAAA O %s :DELCHAN <#channel>", getNumeric(), elem[0]);
+                    sendText("%sAAA %s %s :DELCHAN <#channel>", getNumeric(), notice, elem[0]);
                 } else {
-                    sendText("%sAAA O %s :Unknown command, or access denied.", getNumeric(), elem[0]);
+                    sendText("%sAAA %s %s :Unknown command, or access denied.", getNumeric(), notice, elem[0]);
                 }
             } else if ((elem[1].equals("P") || elem[1].equals("O")) && getChannels().contains(elem[2].toLowerCase())) {
-                StringBuilder sb = new StringBuilder();
-                for (int i = 3; i < elem.length; i++) {
-                    if (elem[3].startsWith(":")) {
-                        elem[3] = elem[3].substring(1);
+                if (!isPrivileged(getUserAccount().get(elem[0]))) {
+                    StringBuilder sb = new StringBuilder();
+                    for (int i = 3; i < elem.length; i++) {
+                        if (elem[3].startsWith(":")) {
+                            elem[3] = elem[3].substring(1);
+                        }
+                        sb.append(elem[i]);
+                        sb.append(" ");
                     }
-                    sb.append(elem[i]);
-                    sb.append(" ");
-                }
-                var command = sb.toString().trim();
-                var nick = elem[0];
-                if (!getUserChannels().containsKey(nick)) {
-                    var list = new ArrayList<String>();
-                    list.add(elem[2].toLowerCase());
-                    getUserChannels().put(nick, list);
-                } else {
-                    var list = getUserChannels().get(nick);
-                    if (!list.contains(elem[2].toLowerCase())) {
+                    var command = sb.toString().trim();
+                    var nick = elem[0];
+                    if (!getUserChannels().containsKey(nick)) {
+                        var list = new ArrayList<String>();
                         list.add(elem[2].toLowerCase());
-                        getUserChannels().replace(nick, list);
+                        getUserChannels().put(nick, list);
+                    } else {
+                        var list = getUserChannels().get(nick);
+                        if (!list.contains(elem[2].toLowerCase())) {
+                            list.add(elem[2].toLowerCase());
+                            getUserChannels().replace(nick, list);
+                        }
                     }
-                }
-                if (!getFlood().containsKey(nick)) {
-                    getFlood().put(nick, 0);
-                } else {
-                    var info = getFlood().get(nick);
-                    info = info + 1;
-                    getFlood().replace(nick, info);
-                    if (info > 5) {
-                        sendText("%sAAA D %s %d : You are violating network rules!", getNumeric(), nick, time());
+                    if (!getFlood().containsKey(nick)) {
+                        getFlood().put(nick, 0);
+                    } else {
+                        var info = getFlood().get(nick);
+                        info = info + 1;
+                        getFlood().replace(nick, info);
+                        if (info > 5) {
+                            sendText("%sAAA D %s %d : You are violating network rules!", getNumeric(), nick, time());
+                            for (var user : getNicks().keySet()) {
+                                var nickName = getNicks().get(nick);
+                                var nicks = getUserAccount().get(user);
+                                var host = getHosts().get(nick);
+                                if (!nicks.isBlank()) {
+                                    var notice = "O";
+                                    if (!isNotice(nicks)) {
+                                        notice = "P";
+                                    }
+                                    if (isPrivileged(nicks)) {
+                                        sendText("%sAAA %s %s :%s!%s was killed because spamming!", getNumeric(), notice, user, nickName, host);
+                                    }
+                                }
+                            }
+                            return;
+                        }
                     }
-                }
-                var b = getMi().getConfig().getBadwordFile();
-                for (var key : b.keySet()) {
-                    var key1 = (String) key;
-                    if(command.toLowerCase().contains(key1.toLowerCase())) {
-                        sendText("%sAAA D %s %d : You are violating network rules!", getNumeric(), nick, time());
-                        break;                        
+                    var b = getMi().getConfig().getBadwordFile();
+                    for (var key : b.keySet()) {
+                        var key1 = (String) key;
+                        if (command.toLowerCase().contains(key1.toLowerCase())) {
+                            sendText("%sAAA D %s %d : You are violating network rules!", getNumeric(), nick, time());
+                            for (var user : getNicks().keySet()) {
+                                var nickName = getNicks().get(nick);
+                                var nicks = getUserAccount().get(user);
+                                var host = getHosts().get(nick);
+                                if (!nicks.isBlank()) {
+                                    var notice = "O";
+                                    if (!isNotice(nicks)) {
+                                        notice = "P";
+                                    }
+                                    if (isPrivileged(nicks)) {
+                                        sendText("%sAAA %s %s :%s!%s was killed because using of badwords!", getNumeric(), notice, user, nickName, host);
+                                    }
+                                }
+                            }
+                            break;
+                        }
                     }
                 }
             } else if (elem[1].equals("L")) {
@@ -421,6 +482,19 @@ public class SocketThread implements Runnable, Software {
                 }
             } else if (elem[1].equals("Q")) {
                 var nick = elem[0];
+                getNicks().remove(nick);
+                getHosts().remove(nick);
+                getUserAccount().remove(nick);
+                if (getFlood().containsKey(nick)) {
+                    getFlood().remove(nick);
+                }
+                if (getUserChannels().containsKey(nick)) {
+                    getUserChannels().remove(nick);
+                }
+            } else if (elem[1].equals("D")) {
+                var nick = elem[2];
+                getNicks().remove(nick);
+                getHosts().remove(nick);
                 getUserAccount().remove(nick);
                 if (getFlood().containsKey(nick)) {
                     getFlood().remove(nick);
@@ -430,82 +504,89 @@ public class SocketThread implements Runnable, Software {
                 }
             }
         }
-        System.out.println(text);
+    }
+
+    private boolean isNotice(String nick) {
+        if (!nick.isBlank()) {
+            var flags = getMi().getDb().getFlags(nick);
+            return isNotice(flags);
+        }
+        return true;
     }
 
     private boolean isPrivileged(String nick) {
         if (!nick.isBlank()) {
             var flags = getMi().getDb().getFlags(nick);
             var oper = isOper(flags);
-            if (oper == 0) {
+            if (oper == false) {
                 oper = isAdmin(flags);
             }
-            if (oper == 0) {
+            if (oper == false) {
                 oper = isDev(flags);
             }
-            return oper != 0;
+            return oper;
         }
         return false;
     }
 
-    private int isNoInfo(int flags) {
-        return 0;
+    private boolean isNoInfo(int flags) {
+        return flags == 0;
     }
 
-    private int isInactive(int flags) {
-        return (flags & QUFLAG_INACTIVE);
+    private boolean isInactive(int flags) {
+        return (flags & QUFLAG_INACTIVE) != 0;
     }
 
-    private int isGline(int flags) {
-        return (flags & QUFLAG_GLINE);
+    private boolean isGline(int flags) {
+        return (flags & QUFLAG_GLINE) != 0;
     }
 
-    private int isNotice(int flags) {
-        return (flags & QUFLAG_NOTICE);
+    private boolean isNotice(int flags) {
+        return (flags & QUFLAG_NOTICE) != 0;
     }
 
-    private int isSuspended(int flags) {
-        return (flags & QUFLAG_SUSPENDED);
+    private boolean isSuspended(int flags) {
+        return (flags & QUFLAG_SUSPENDED) != 0;
     }
 
-    private int isOper(int flags) {
-        return (flags & QUFLAG_OPER);
+    private boolean isOper(int flags) {
+        return (flags & QUFLAG_OPER) != 0;
     }
 
-    private int isDev(int flags) {
-        return (flags & QUFLAG_DEV);
+    private boolean isDev(int flags) {
+        return (flags & QUFLAG_DEV) != 0;
     }
 
-    private int isProtect(int flags) {
-        return (flags & QUFLAG_PROTECT);
+    private boolean isProtect(int flags) {
+        return (flags & QUFLAG_PROTECT) != 0;
     }
 
-    private int isHelper(int flags) {
-        return (flags & QUFLAG_HELPER);
+    private boolean isHelper(int flags) {
+        return (flags & QUFLAG_HELPER) != 0;
     }
 
-    private int isAdmin(int flags) {
-        return (flags & QUFLAG_ADMIN);
+    private boolean isAdmin(int flags) {
+        return (flags & QUFLAG_ADMIN) != 0;
     }
 
-    private int isInfo(int flags) {
-        return (flags & QUFLAG_INFO);
+    private boolean isInfo(int flags) {
+        return (flags & QUFLAG_INFO) != 0;
     }
 
-    private int isDelayedGline(int flags) {
-        return (flags & QUFLAG_DELAYEDGLINE);
+    private boolean isDelayedGline(int flags) {
+        return (flags & QUFLAG_DELAYEDGLINE) != 0;
     }
 
-    private int isNoAuthLimit(int flags) {
-        return (flags & QUFLAG_NOAUTHLIMIT);
+    private boolean isNoAuthLimit(int flags) {
+        return (flags & QUFLAG_NOAUTHLIMIT) != 0;
     }
 
-    private int isCleanupExempt(int flags) {
-        return (flags & QUFLAG_CLEANUPEXEMPT);
+    private boolean isCleanupExempt(int flags) {
+        return (flags & QUFLAG_CLEANUPEXEMPT) != 0;
     }
 
-    private int isStaff(int flags) {
-        return (flags & QUFLAG_STAFF);
+    private boolean isStaff(int flags) {
+        return (flags & QUFLAG_STAFF) != 0;
     }
 
     private void joinChannel(String channel) {
@@ -513,11 +594,11 @@ public class SocketThread implements Runnable, Software {
         sendText("%s M %s +o %sAAA", getNumeric(), channel, getNumeric());
         getChannels().add(channel.toLowerCase());
     }
-    
+
     private void partChannel(String channel) {
         sendText("%sAAA L %s", getNumeric(), channel);
         getChannels().remove(channel.toLowerCase());
-    }    
+    }
 
     private long time() {
         return System.currentTimeMillis() / 1000;
@@ -525,6 +606,7 @@ public class SocketThread implements Runnable, Software {
 
     @Override
     public void run() {
+        System.out.println("Connecting to server...");
         setRuns(true);
         var host = getMi().getConfig().getConfigFile().getProperty("host");
         var port = getMi().getConfig().getConfigFile().getProperty("port");
@@ -567,6 +649,7 @@ public class SocketThread implements Runnable, Software {
         setBr(null);
         setSocket(null);
         setRuns(false);
+        System.out.println("Disconnected...");
     }
 
     /**
@@ -693,5 +776,19 @@ public class SocketThread implements Runnable, Software {
      */
     public void setUserAccount(HashMap<String, String> userAccount) {
         this.userAccount = userAccount;
+    }
+
+    /**
+     * @return the nicks
+     */
+    public HashMap<String, String> getNicks() {
+        return nicks;
+    }
+
+    /**
+     * @param nicks the nicks to set
+     */
+    public void setNicks(HashMap<String, String> nicks) {
+        this.nicks = nicks;
     }
 }

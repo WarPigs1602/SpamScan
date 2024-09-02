@@ -8,7 +8,7 @@ package net.midiandmore.spamscan;
  *
  * @author Andreas Pschorn
  */
-public class Spamscan {
+public class Spamscan implements Software {
 
     /**
      * @return the db
@@ -86,6 +86,9 @@ public class Spamscan {
     }
 
     protected void init(String[] args) {
+        System.out.println("SpamScan " + VERSION);
+        System.out.println("By " + AUTHOR);
+        System.out.println();
         setConfig(new Config(this, "config-spamscan.json"));
         setDb(new Database(this));
         setWaitThread(new WaitThread(this));
