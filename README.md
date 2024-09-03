@@ -1,4 +1,4 @@
-# Spamscan
+# SpamScan
  Experimental SpamScan for newserv,<br>
  To build the SpamScan, please use netbeans<br>
 <br>
