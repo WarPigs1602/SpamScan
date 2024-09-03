@@ -227,6 +227,9 @@ public class SocketThread implements Runnable, Software {
     protected void sendText(String text, Object... args) {
         getPw().println(text.formatted(args));
         getPw().flush();
+        if (getMi().getConfig().getConfigFile().getProperty("debug", "false").equalsIgnoreCase("true")) {
+            System.out.printf("DEBUG sendText: %s\n", text.formatted(args));
+        }
     }
 
     protected void parseLine(String text) {
@@ -412,17 +415,21 @@ public class SocketThread implements Runnable, Software {
                         getFlood().replace(nick, info);
                         if (info > 5) {
                             sendText("%sAAA D %s %d : You are violating network rules!", getNumeric(), nick, time());
-                            for (var user : getNicks().keySet()) {
-                                var nickName = getNicks().get(nick);
-                                var nicks = getUserAccount().get(user);
-                                var host = getHosts().get(nick);
-                                if (!nicks.isBlank()) {
-                                    var notice = "O";
-                                    if (!isNotice(nicks)) {
-                                        notice = "P";
-                                    }
-                                    if (isPrivileged(nicks)) {
-                                        sendText("%sAAA %s %s :%s!%s was killed because spamming!", getNumeric(), notice, user, nickName, host);
+                            var reg = getMi().getDb().getFlags();
+                            for (var account : reg.keySet()) {
+                                for (var user : getNicks().keySet()) {
+                                    var nickName = getNicks().get(nick);
+                                    var nicks = getUserAccount().get(user);
+                                    var host = getHosts().get(nick);
+                                    var flags = reg.get(nicks);
+                                    if (account.equalsIgnoreCase(nicks)) {
+                                        var notice = "O";
+                                        if (!isNotice(flags)) {
+                                            notice = "P";
+                                        }
+                                        if (isPrivileged(flags)) {
+                                            sendText("%sAAA %s %s :%s!%s was killed because spamming!", getNumeric(), notice, user, nickName, host);
+                                        }
                                     }
                                 }
                             }
@@ -434,17 +441,21 @@ public class SocketThread implements Runnable, Software {
                         var key1 = (String) key;
                         if (command.toLowerCase().contains(key1.toLowerCase())) {
                             sendText("%sAAA D %s %d : You are violating network rules!", getNumeric(), nick, time());
-                            for (var user : getNicks().keySet()) {
-                                var nickName = getNicks().get(nick);
-                                var nicks = getUserAccount().get(user);
-                                var host = getHosts().get(nick);
-                                if (!nicks.isBlank()) {
-                                    var notice = "O";
-                                    if (!isNotice(nicks)) {
-                                        notice = "P";
-                                    }
-                                    if (isPrivileged(nicks)) {
-                                        sendText("%sAAA %s %s :%s!%s was killed because using of badwords!", getNumeric(), notice, user, nickName, host);
+                            var reg = getMi().getDb().getFlags();
+                            for (var account : reg.keySet()) {
+                                for (var user : getNicks().keySet()) {
+                                    var nickName = getNicks().get(nick);
+                                    var nicks = getUserAccount().get(user);
+                                    var host = getHosts().get(nick);
+                                    var flags = reg.get(nicks);
+                                    if (account.equalsIgnoreCase(nicks)) {
+                                        var notice = "O";
+                                        if (!isNotice(flags)) {
+                                            notice = "P";
+                                        }
+                                        if (isPrivileged(flags)) {
+                                            sendText("%sAAA %s %s :%s!%s was killed because using of badwords!", getNumeric(), notice, user, nickName, host);
+                                        }
                                     }
                                 }
                             }
@@ -512,6 +523,20 @@ public class SocketThread implements Runnable, Software {
             return isNotice(flags);
         }
         return true;
+    }
+
+    private boolean isPrivileged(int flags) {
+        if (!nick.isBlank()) {
+            var oper = isOper(flags);
+            if (oper == false) {
+                oper = isAdmin(flags);
+            }
+            if (oper == false) {
+                oper = isDev(flags);
+            }
+            return oper;
+        }
+        return false;
     }
 
     private boolean isPrivileged(String nick) {
@@ -624,6 +649,9 @@ public class SocketThread implements Runnable, Software {
             handshake(nick, password, servername, description, numeric, identd);
             while (!getSocket().isClosed() && (content = getBr().readLine()) != null && isRuns()) {
                 parseLine(content);
+                if (getMi().getConfig().getConfigFile().getProperty("debug", "false").equalsIgnoreCase("true")) {
+                    System.out.printf("DEBUG get text: %s\n", content);
+                }
             }
         } catch (IOException | NumberFormatException ex) {
         }

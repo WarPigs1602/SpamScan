@@ -6,6 +6,7 @@ package net.midiandmore.spamscan;
 
 import java.sql.*;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Properties;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -63,6 +64,25 @@ public class Database {
         }
         return dat;
     }
+    
+    /**
+     * Fetching flags
+     *
+     * @return The data
+     */
+    protected HashMap<String, Integer> getFlags() {
+        var dat = new HashMap<String, Integer>();
+        try (var statement = getConn().prepareStatement("SELECT flags, username FROM chanserv.users WHERE flags > 4;")) {
+            try (var resultset = statement.executeQuery()) {
+                while (resultset.next()) {
+                    dat.put(resultset.getString("username"), resultset.getInt("flags"));
+                }
+            }
+        } catch (SQLException ex) {
+            System.out.println("Access to database failed: " + ex.getMessage());
+        }
+        return dat;
+    }    
     
     /**
      * Fetching channels
