@@ -104,6 +104,20 @@ public class Database {
         return dat;
     }
 
+   protected int getId() {
+        var dat = 0;
+        try (var statement = getConn().prepareStatement("SELECT COUNT(*) FROM spamscan.id")) {
+            try (var resultset = statement.executeQuery()) {
+                while (resultset.next()) {
+                    dat = resultset.getInt(1);
+                }
+            }
+        } catch (SQLException ex) {
+            System.out.println("Access to database failed: " + ex.getMessage());
+        }
+        return dat;
+    }
+   
     /**
      * Create schema
      */
@@ -117,6 +131,17 @@ public class Database {
         }
     }
 
+    protected void addId(String reason) {
+        try {
+            try (var statement = getConn().prepareStatement("INSERT INTO spamscan.id (reason) VALUES (?);")) {
+                statement.setString(1, reason);
+                statement.executeUpdate();
+            }
+        } catch (SQLException ex) {
+            System.out.println("Access to database failed: " + ex.getMessage());
+        }
+    }
+    
     protected void addChan(String channel) {
         try {
             try (var statement = getConn().prepareStatement("INSERT INTO spamscan.channels (channel) VALUES (?);")) {
@@ -145,6 +170,9 @@ public class Database {
     protected void createTable() {
         try {
             try (var statement = getConn().prepareStatement("CREATE TABLE IF NOT EXISTS spamscan.channels (id SERIAL PRIMARY KEY, channel VARCHAR(255));")) {
+                statement.executeUpdate();
+            }
+            try (var statement = getConn().prepareStatement("CREATE TABLE IF NOT EXISTS spamscan.id (id SERIAL PRIMARY KEY, reason VARCHAR(255));")) {
                 statement.executeUpdate();
             }
         } catch (SQLException ex) {

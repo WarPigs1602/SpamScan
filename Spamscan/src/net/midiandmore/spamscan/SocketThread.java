@@ -167,16 +167,20 @@ public class SocketThread implements Runnable, Software {
     private byte[] ip;
     private ArrayList<String> channels;
     private HashMap<String, Integer> flood;
+    private HashMap<String, Integer> repeat;
     private HashMap<String, ArrayList<String>> userChannels;
     private HashMap<String, String> userAccount;
     private HashMap<String, String> nicks;
     private HashMap<String, String> hosts;
+    private HashMap<String, String> repeatLine;
     private boolean reg;
 
     public SocketThread(Spamscan mi) {
         setMi(mi);
         setChannels(new ArrayList<>());
         setFlood(new HashMap<>());
+        setRepeat(new HashMap<>());
+        setRepeatLine(new HashMap<>());
         setUserChannels(new HashMap<>());
         setNicks(new HashMap<>());
         setUserAccount(new HashMap<>());
@@ -407,6 +411,24 @@ public class SocketThread implements Runnable, Software {
                             getUserChannels().replace(nick, list);
                         }
                     }
+                    if (!getRepeat().containsKey(nick)) {
+                        getRepeat().put(nick, 0);
+                        getRepeatLine().put(nick, command);
+                    } else if (getRepeatLine().get(nick).equalsIgnoreCase(command)) {
+                        var info = getRepeat().get(nick);
+                        info = info + 1;
+                        getRepeat().replace(nick, info);
+                        if (info > 3) {
+                            int count = getMi().getDb().getId();
+                            count++;
+                            getMi().getDb().addId("Repeating lines!");
+                            sendText("%sAAA D %s %d : (You are violating network rules, ID: %d)", getNumeric(), nick, time(), count);
+                            return;
+                        }
+                    } else {
+                        getRepeat().replace(nick, 0);
+                        getRepeatLine().replace(nick, command);
+                    }
                     if (!getFlood().containsKey(nick)) {
                         getFlood().put(nick, 0);
                     } else {
@@ -414,25 +436,10 @@ public class SocketThread implements Runnable, Software {
                         info = info + 1;
                         getFlood().replace(nick, info);
                         if (info > 5) {
-                            sendText("%sAAA D %s %d : You are violating network rules!", getNumeric(), nick, time());
-                            var reg = getMi().getDb().getFlags();
-                            for (var account : reg.keySet()) {
-                                for (var user : getNicks().keySet()) {
-                                    var nickName = getNicks().get(nick);
-                                    var nicks = getUserAccount().get(user);
-                                    var host = getHosts().get(nick);
-                                    var flags = reg.get(nicks);
-                                    if (account.equalsIgnoreCase(nicks)) {
-                                        var notice = "O";
-                                        if (!isNotice(flags)) {
-                                            notice = "P";
-                                        }
-                                        if (isPrivileged(flags)) {
-                                            sendText("%sAAA %s %s :%s!%s was killed because spamming!", getNumeric(), notice, user, nickName, host);
-                                        }
-                                    }
-                                }
-                            }
+                            int count = getMi().getDb().getId();
+                            count++;
+                            getMi().getDb().addId("Flooding!");
+                            sendText("%sAAA D %s %d : (You are violating network rules, ID: %d)", getNumeric(), nick, time(), count);
                             return;
                         }
                     }
@@ -440,26 +447,11 @@ public class SocketThread implements Runnable, Software {
                     for (var key : b.keySet()) {
                         var key1 = (String) key;
                         if (command.toLowerCase().contains(key1.toLowerCase())) {
-                            sendText("%sAAA D %s %d : You are violating network rules!", getNumeric(), nick, time());
-                            var reg = getMi().getDb().getFlags();
-                            for (var account : reg.keySet()) {
-                                for (var user : getNicks().keySet()) {
-                                    var nickName = getNicks().get(nick);
-                                    var nicks = getUserAccount().get(user);
-                                    var host = getHosts().get(nick);
-                                    var flags = reg.get(nicks);
-                                    if (account.equalsIgnoreCase(nicks)) {
-                                        var notice = "O";
-                                        if (!isNotice(flags)) {
-                                            notice = "P";
-                                        }
-                                        if (isPrivileged(flags)) {
-                                            sendText("%sAAA %s %s :%s!%s was killed because using of badwords!", getNumeric(), notice, user, nickName, host);
-                                        }
-                                    }
-                                }
-                            }
-                            break;
+                            int count = getMi().getDb().getId();
+                            count++;
+                            getMi().getDb().addId("Using of badwords!");
+                            sendText("%sAAA D %s %d : (You are violating network rules, ID: %d)", getNumeric(), nick, time(), count);
+                            return;
                         }
                     }
                 }
@@ -499,6 +491,12 @@ public class SocketThread implements Runnable, Software {
                 if (getFlood().containsKey(nick)) {
                     getFlood().remove(nick);
                 }
+                if (getRepeat().containsKey(nick)) {
+                    getRepeat().remove(nick);
+                }
+                if (getRepeatLine().containsKey(nick)) {
+                    getRepeatLine().remove(nick);
+                }
                 if (getUserChannels().containsKey(nick)) {
                     getUserChannels().remove(nick);
                 }
@@ -509,6 +507,12 @@ public class SocketThread implements Runnable, Software {
                 getUserAccount().remove(nick);
                 if (getFlood().containsKey(nick)) {
                     getFlood().remove(nick);
+                }
+                if (getRepeat().containsKey(nick)) {
+                    getRepeat().remove(nick);
+                }
+                if (getRepeatLine().containsKey(nick)) {
+                    getRepeatLine().remove(nick);
                 }
                 if (getUserChannels().containsKey(nick)) {
                     getUserChannels().remove(nick);
@@ -818,5 +822,33 @@ public class SocketThread implements Runnable, Software {
      */
     public void setNicks(HashMap<String, String> nicks) {
         this.nicks = nicks;
+    }
+
+    /**
+     * @return the repeat
+     */
+    public HashMap<String, Integer> getRepeat() {
+        return repeat;
+    }
+
+    /**
+     * @param repeat the repeat to set
+     */
+    public void setRepeat(HashMap<String, Integer> repeat) {
+        this.repeat = repeat;
+    }
+
+    /**
+     * @return the repeatLine
+     */
+    public HashMap<String, String> getRepeatLine() {
+        return repeatLine;
+    }
+
+    /**
+     * @param repeatLine the repeatLine to set
+     */
+    public void setRepeatLine(HashMap<String, String> repeatLine) {
+        this.repeatLine = repeatLine;
     }
 }
