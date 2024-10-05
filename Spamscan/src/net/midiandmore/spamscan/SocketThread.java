@@ -27,59 +27,17 @@ import java.util.logging.Logger;
 public class SocketThread implements Runnable, Software {
 
     /**
-     * @return the hosts
+     * @return the users
      */
-    public HashMap<String, String> getHosts() {
-        return hosts;
+    public HashMap<String, Users> getUsers() {
+        return users;
     }
 
     /**
-     * @param hosts the hosts to set
+     * @param users the users to set
      */
-    public void setHosts(HashMap<String, String> hosts) {
-        this.hosts = hosts;
-    }
-
-    /**
-     * @return the userChannels
-     */
-    public HashMap<String, ArrayList<String>> getUserChannels() {
-        return userChannels;
-    }
-
-    /**
-     * @param userChannels the userChannels to set
-     */
-    public void setUserChannels(HashMap<String, ArrayList<String>> userChannels) {
-        this.userChannels = userChannels;
-    }
-
-    /**
-     * @return the flood
-     */
-    public HashMap<String, Integer> getFlood() {
-        return flood;
-    }
-
-    /**
-     * @param flood the flood to set
-     */
-    public void setFlood(HashMap<String, Integer> flood) {
-        this.flood = flood;
-    }
-
-    /**
-     * @return the channels
-     */
-    public ArrayList<String> getChannels() {
-        return channels;
-    }
-
-    /**
-     * @param channels the channels to set
-     */
-    public void setChannels(ArrayList<String> channels) {
-        this.channels = channels;
+    public void setUsers(HashMap<String, Users> users) {
+        this.users = users;
     }
 
     /**
@@ -165,26 +123,14 @@ public class SocketThread implements Runnable, Software {
     private String servername;
     private String description;
     private byte[] ip;
-    private ArrayList<String> channels;
-    private HashMap<String, Integer> flood;
-    private HashMap<String, Integer> repeat;
-    private HashMap<String, ArrayList<String>> userChannels;
-    private HashMap<String, String> userAccount;
-    private HashMap<String, String> nicks;
-    private HashMap<String, String> hosts;
-    private HashMap<String, String> repeatLine;
+    private HashMap<String, Users> users;
+    private HashMap<String, Channel> channel;
     private boolean reg;
 
     public SocketThread(Spamscan mi) {
         setMi(mi);
-        setChannels(new ArrayList<>());
-        setFlood(new HashMap<>());
-        setRepeat(new HashMap<>());
-        setRepeatLine(new HashMap<>());
-        setUserChannels(new HashMap<>());
-        setNicks(new HashMap<>());
-        setUserAccount(new HashMap<>());
-        setHosts(new HashMap<>());
+        setUsers(new HashMap<>());
+        setChannel(new HashMap<>());
         setReg(false);
         (thread = new Thread(this)).start();
     }
@@ -264,19 +210,32 @@ public class SocketThread implements Runnable, Software {
                         nick = elem[9];
                     }
                 }
-                getNicks().put(nick, elem[2]);
-                getHosts().put(nick, elem[5] + "@" + elem[6]);
-                getUserAccount().put(nick, acc);
+                getUsers().put(nick, new Users(elem[2], elem[5] + "@" + elem[6], acc));
             } else if (elem[1].equals("N") && elem.length == 4) {
-                getNicks().replace(elem[0], elem[2]);
+                getUsers().get(elem[0]).setNick(elem[2]);
+            } else if (elem[1].equals("B") && elem.length == 6) {
+                var channel = elem[2].toLowerCase();
+                var modes = elem[4];
+                var names = elem[5].split(",");
+                getChannel().put(channel, new Channel(channel, modes, names));
+            } else if (elem[1].equals("B") && elem.length == 5) {
+                var channel = elem[2].toLowerCase();
+                var modes = "";
+                var names = elem[4].split(",");
+                getChannel().put(channel, new Channel(channel, modes, names));
+            } else if (elem[1].equals("C")) {
+                var channel = elem[2].toLowerCase();
+                var names = new String[1];
+                names[0] = elem[0] + ":o";
+                getChannel().put(channel, new Channel(channel, "", names));
+            } else if (elem[1].equals("J")) {
+                var channel = elem[2].toLowerCase();
+                var names = elem[0];
+                getChannel().get(channel).getUsers().add(names);
             } else if (elem[1].equals("AC")) {
                 var acc = elem[3];
                 var nick = elem[2];
-                if (getUserAccount().containsKey(nick)) {
-                    getUserAccount().replace(nick, acc);
-                } else {
-                    getUserAccount().put(nick, acc);
-                }
+                getUsers().get(nick).setAccount(acc);
             } else if (elem[1].equals("EB")) {
                 sendText("%s EA", getNumeric());
                 System.out.println("Handshake complete...");
@@ -299,7 +258,7 @@ public class SocketThread implements Runnable, Software {
                 if (command.startsWith(":")) {
                     command = command.substring(1);
                 }
-                var nick = getUserAccount().get(elem[0]);
+                var nick = getUsers().get(elem[0]).getNick();
                 var notice = "O";
                 if (!isNotice(nick)) {
                     notice = "P";
@@ -388,8 +347,8 @@ public class SocketThread implements Runnable, Software {
                 } else {
                     sendText("%sAAA %s %s :Unknown command, or access denied.", getNumeric(), notice, elem[0]);
                 }
-            } else if ((elem[1].equals("P") || elem[1].equals("O")) && getChannels().contains(elem[2].toLowerCase())) {
-                if (!isPrivileged(getUserAccount().get(elem[0]))) {
+            } else if ((elem[1].equals("P") || elem[1].equals("O")) && getChannel().containsKey(elem[2].toLowerCase())) {
+                if (!isPrivileged(getUsers().get(elem[0]).getAccount())) {
                     StringBuilder sb = new StringBuilder();
                     for (int i = 3; i < elem.length; i++) {
                         if (elem[3].startsWith(":")) {
@@ -400,48 +359,42 @@ public class SocketThread implements Runnable, Software {
                     }
                     var command = sb.toString().trim();
                     var nick = elem[0];
-                    if (!getUserChannels().containsKey(nick)) {
-                        var list = new ArrayList<String>();
+                    var list = getUsers().get(nick).getChannels();
+                    if (!list.contains(elem[2].toLowerCase())) {
                         list.add(elem[2].toLowerCase());
-                        getUserChannels().put(nick, list);
-                    } else {
-                        var list = getUserChannels().get(nick);
-                        if (!list.contains(elem[2].toLowerCase())) {
-                            list.add(elem[2].toLowerCase());
-                            getUserChannels().replace(nick, list);
-                        }
                     }
-                    if (!getRepeat().containsKey(nick)) {
-                        getRepeat().put(nick, 0);
-                        getRepeatLine().put(nick, command);
-                    } else if (getRepeatLine().get(nick).equalsIgnoreCase(command)) {
-                        var info = getRepeat().get(nick);
+                    if (getUsers().get(nick).getLine().equalsIgnoreCase(command)) {
+                        var info = getUsers().get(nick).getRepeat();
                         info = info + 1;
-                        getRepeat().replace(nick, info);
+                        getUsers().get(nick).setRepeat(info);
                         if (info > 3) {
                             int count = getMi().getDb().getId();
                             count++;
                             getMi().getDb().addId("Repeating lines!");
-                            sendText("%sAAA D %s %d : (You are violating network rules, ID: %d)", getNumeric(), nick, time(), count);
+                            if (getChannel().get(elem[2].toLowerCase()).isModerated() && getChannel().get(elem[2].toLowerCase()).getVoice().contains(nick)) {
+                                sendText("%sAAA M %s -v %s", getNumeric(), elem[2].toLowerCase(), nick);
+                            } else {
+                                sendText("%sAAA D %s %d : (You are violating network rules, ID: %d)", getNumeric(), nick, time(), count);
+                            }
                             return;
                         }
                     } else {
-                        getRepeat().replace(nick, 0);
-                        getRepeatLine().replace(nick, command);
+                        getUsers().get(nick).setRepeat(0);
+                        getUsers().get(nick).setLine(command);
                     }
-                    if (!getFlood().containsKey(nick)) {
-                        getFlood().put(nick, 0);
-                    } else {
-                        var info = getFlood().get(nick);
-                        info = info + 1;
-                        getFlood().replace(nick, info);
-                        if (info > 5) {
-                            int count = getMi().getDb().getId();
-                            count++;
-                            getMi().getDb().addId("Flooding!");
+                    var info = getUsers().get(nick).getFlood();
+                    info = info + 1;
+                    getUsers().get(nick).setFlood(info);
+                    if (info > 5) {
+                        int count = getMi().getDb().getId();
+                        count++;
+                        getMi().getDb().addId("Flooding!");
+                        if (getChannel().get(elem[2].toLowerCase()).isModerated() && getChannel().get(elem[2].toLowerCase()).getVoice().contains(nick)) {
+                            sendText("%sAAA M %s -v %s", getNumeric(), elem[2].toLowerCase(), nick);
+                        } else {
                             sendText("%sAAA D %s %d : (You are violating network rules, ID: %d)", getNumeric(), nick, time(), count);
-                            return;
                         }
+                        return;
                     }
                     var b = getMi().getConfig().getBadwordFile();
                     for (var key : b.keySet()) {
@@ -450,74 +403,99 @@ public class SocketThread implements Runnable, Software {
                             int count = getMi().getDb().getId();
                             count++;
                             getMi().getDb().addId("Using of badwords!");
-                            sendText("%sAAA D %s %d : (You are violating network rules, ID: %d)", getNumeric(), nick, time(), count);
+                            if (getChannel().get(elem[2].toLowerCase()).isModerated() && getChannel().get(elem[2].toLowerCase()).getVoice().contains(nick)) {
+                                sendText("%sAAA M %s -v %s", getNumeric(), elem[2].toLowerCase(), nick);
+                            } else {
+                                sendText("%sAAA D %s %d : (You are violating network rules, ID: %d)", getNumeric(), nick, time(), count);
+                            }
                             return;
                         }
                     }
                 }
             } else if (elem[1].equals("L")) {
                 var nick = elem[0];
-                if (getUserChannels().containsKey(nick)) {
-                    var list = getUserChannels().get(nick);
-                    if (list.contains(elem[2].toLowerCase())) {
-                        list.remove(elem[2].toLowerCase());
-                        if (list.isEmpty()) {
-                            getUserChannels().remove(nick);
-                            getFlood().remove(nick);
-                        } else {
-                            getUserChannels().replace(nick, list);
-                        }
-                    }
-                }
+                var channel = elem[2].toLowerCase();
+                removeUser(nick, channel);
             } else if (elem[1].equals("K")) {
-                var nick = elem[3];
-                if (getUserChannels().containsKey(nick)) {
-                    var list = getUserChannels().get(nick);
-                    if (list.contains(elem[2].toLowerCase())) {
-                        list.remove(elem[2].toLowerCase());
-                        if (list.isEmpty()) {
-                            getUserChannels().remove(nick);
-                            getFlood().remove(nick);
-                        } else {
-                            getUserChannels().replace(nick, list);
-                        }
-                    }
-                }
+                var nick = elem[0];
+                var channel = elem[2].toLowerCase();
+                removeUser(nick, channel);
             } else if (elem[1].equals("Q")) {
                 var nick = elem[0];
-                getNicks().remove(nick);
-                getHosts().remove(nick);
-                getUserAccount().remove(nick);
-                if (getFlood().containsKey(nick)) {
-                    getFlood().remove(nick);
+                for (var users : getUsers().values()) {
+                    var channels = users.getChannels().toArray();
+                    for (var channel : channels) {
+                        removeUser(nick, channel.toString());
+                    }
                 }
-                if (getRepeat().containsKey(nick)) {
-                    getRepeat().remove(nick);
-                }
-                if (getRepeatLine().containsKey(nick)) {
-                    getRepeatLine().remove(nick);
-                }
-                if (getUserChannels().containsKey(nick)) {
-                    getUserChannels().remove(nick);
-                }
+                getUsers().remove(nick);
             } else if (elem[1].equals("D")) {
                 var nick = elem[2];
-                getNicks().remove(nick);
-                getHosts().remove(nick);
-                getUserAccount().remove(nick);
-                if (getFlood().containsKey(nick)) {
-                    getFlood().remove(nick);
+                for (var users : getUsers().values()) {
+                    var channels = users.getChannels().toArray();
+                    for (var channel : channels) {
+                        removeUser(nick, channel.toString());
+                    }
                 }
-                if (getRepeat().containsKey(nick)) {
-                    getRepeat().remove(nick);
-                }
-                if (getRepeatLine().containsKey(nick)) {
-                    getRepeatLine().remove(nick);
-                }
-                if (getUserChannels().containsKey(nick)) {
-                    getUserChannels().remove(nick);
+                getUsers().remove(nick);
+            } else if (elem[1].equals("M")) {
+                var nick = elem[0];
+                var channel = elem[2].toLowerCase();
+                if (channel.startsWith("#") || channel.startsWith("&")) {
+                    var flags = elem[3].split("");
+                    var set = false;
+                    var cnt = 0;
+                    for (var mode : flags) {
+                        if (mode.equals("-")) {
+                            set = false;
+                        } else if (mode.equals("+")) {
+                            set = true;
+                        } else if (set && mode.equals("o")) {
+                            var users = elem[4].split(" ");
+                            getChannel().get(channel).getOp().add(users[cnt]);
+                            cnt++;
+                        } else if (set && mode.equals("v")) {
+                            var users = elem[4].split(" ");
+                            getChannel().get(channel).getVoice().add(users[cnt]);
+                            cnt++;
+                        } else if (!set && mode.equals("o")) {
+                            var users = elem[4].split(" ");
+                            getChannel().get(channel).getOp().remove(users[cnt]);
+                            cnt++;
+                        } else if (!set && mode.equals("v")) {
+                            var users = elem[4].split(" ");
+                            getChannel().get(channel).getVoice().remove(users[cnt]);
+                            cnt++;
+                        } else if (set) {
+                            getChannel().get(channel).setModes(getChannel().get(channel).getModes() + mode);
+                            if (mode.equals("m")) {
+                                getChannel().get(channel).setModerated(true);
+                            }
+                        } else {
+                            getChannel().get(channel).setModes(getChannel().get(channel).getModes().replace(mode, ""));
+                            if (mode.equals("m")) {
+                                getChannel().get(channel).setModerated(false);
+                            }
+                        }
+                    }
                 }
             }
+        }
+    }
+
+    private void removeUser(String nick, String channel) {
+        getChannel().get(channel).getUsers().remove(nick);
+        if (getChannel().get(channel).getOp().contains(nick)) {
+            getChannel().get(channel).getOp().remove(nick);
+        }
+        if (getChannel().get(channel).getVoice().contains(nick)) {
+            getChannel().get(channel).getVoice().remove(nick);
+        }
+        if (getChannel().get(channel).getUsers().size() == 0) {
+            getChannel().remove(channel);
+        }
+        if (getUsers().get(nick).getChannels().contains(channel)) {
+            getUsers().get(nick).getChannels().remove(channel);
         }
     }
 
@@ -621,12 +599,10 @@ public class SocketThread implements Runnable, Software {
     private void joinChannel(String channel) {
         sendText("%sAAA J %s", getNumeric(), channel);
         sendText("%s M %s +o %sAAA", getNumeric(), channel, getNumeric());
-        getChannels().add(channel.toLowerCase());
     }
 
     private void partChannel(String channel) {
         sendText("%sAAA L %s", getNumeric(), channel);
-        getChannels().remove(channel.toLowerCase());
     }
 
     private long time() {
@@ -797,58 +773,16 @@ public class SocketThread implements Runnable, Software {
     }
 
     /**
-     * @return the userAccount
+     * @return the channel
      */
-    public HashMap<String, String> getUserAccount() {
-        return userAccount;
+    public HashMap<String, Channel> getChannel() {
+        return channel;
     }
 
     /**
-     * @param userAccount the userAccount to set
+     * @param channel the channel to set
      */
-    public void setUserAccount(HashMap<String, String> userAccount) {
-        this.userAccount = userAccount;
-    }
-
-    /**
-     * @return the nicks
-     */
-    public HashMap<String, String> getNicks() {
-        return nicks;
-    }
-
-    /**
-     * @param nicks the nicks to set
-     */
-    public void setNicks(HashMap<String, String> nicks) {
-        this.nicks = nicks;
-    }
-
-    /**
-     * @return the repeat
-     */
-    public HashMap<String, Integer> getRepeat() {
-        return repeat;
-    }
-
-    /**
-     * @param repeat the repeat to set
-     */
-    public void setRepeat(HashMap<String, Integer> repeat) {
-        this.repeat = repeat;
-    }
-
-    /**
-     * @return the repeatLine
-     */
-    public HashMap<String, String> getRepeatLine() {
-        return repeatLine;
-    }
-
-    /**
-     * @param repeatLine the repeatLine to set
-     */
-    public void setRepeatLine(HashMap<String, String> repeatLine) {
-        this.repeatLine = repeatLine;
+    public void setChannel(HashMap<String, Channel> channel) {
+        this.channel = channel;
     }
 }

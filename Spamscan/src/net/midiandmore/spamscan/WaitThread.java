@@ -51,11 +51,11 @@ public class WaitThread implements Runnable {
                     getMi().getSocketThread().setRuns(false);
                     getMi().setSocketThread(null);
                 } else {
-                    var set = getMi().getSocketThread().getFlood().keySet();
+                    var set = getMi().getSocketThread().getUsers().keySet();
                     for (var nick : set) {
-                        var flood = getMi().getSocketThread().getFlood().get(nick);
+                        var flood = getMi().getSocketThread().getUsers().get(nick).getFlood();
                         if (flood != 0) {
-                            getMi().getSocketThread().getFlood().replace(nick, flood - 1);
+                            getMi().getSocketThread().getUsers().get(nick).setFlood(flood - 1);
                         }
                     }
                 }
