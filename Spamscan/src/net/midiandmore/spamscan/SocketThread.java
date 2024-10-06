@@ -373,6 +373,7 @@ public class SocketThread implements Runnable, Software {
                             getMi().getDb().addId("Repeating lines!");
                             if (getChannel().get(elem[2].toLowerCase()).isModerated() && getChannel().get(elem[2].toLowerCase()).getVoice().contains(nick)) {
                                 sendText("%sAAA M %s -v %s", getNumeric(), elem[2].toLowerCase(), nick);
+                                getUsers().get(nick).setRepeat(0);
                             } else {
                                 sendText("%sAAA D %s %d : (You are violating network rules, ID: %d)", getNumeric(), nick, time(), count);
                             }
@@ -391,6 +392,7 @@ public class SocketThread implements Runnable, Software {
                         getMi().getDb().addId("Flooding!");
                         if (getChannel().get(elem[2].toLowerCase()).isModerated() && getChannel().get(elem[2].toLowerCase()).getVoice().contains(nick)) {
                             sendText("%sAAA M %s -v %s", getNumeric(), elem[2].toLowerCase(), nick);
+                            getUsers().get(nick).setFlood(0);
                         } else {
                             sendText("%sAAA D %s %d : (You are violating network rules, ID: %d)", getNumeric(), nick, time(), count);
                         }
